@@ -26,39 +26,48 @@ def update_load():
             time.sleep(5)
             turbo.push(turbo.replace(render_template('loadavg.html'), 'load'))
 
-@scheduler.scheduler.scheduled_job('interval', id='getdrones', seconds=2, misfire_grace_time=10)
+@scheduler.scheduler.scheduled_job('interval', id='getdrones', seconds=3, misfire_grace_time=10)
 def get_drones():
-    responseObj = s.get("http://assignments.reaktor.com/birdnest/drones")
-    tree = etree.fromstring(responseObj.content)
-    droneList = tree.findall(".//drone")
-    for drone in droneList:
-        droneX = float(drone.find("positionX").text)
-        droneY = float(drone.find("positionY").text)
-        droneSerial = drone.find("serialNumber").text
-        if droneX > deviceMinimumRangeX and droneX < deviceMaximumRangeX and droneY > deviceMinimumRangeY and droneY < deviceMaximumRangeY:
-            with request('GET', url=f'http://assignments.reaktor.com/birdnest/pilots/{droneSerial}') as url:
-                if url.ok:
-                    data = url.json()
-                    droneDict = {
-                        "positionX": droneX,
-                        "positionY": droneY,
-                        "pilot name": f'{data["firstName"]} {data["lastName"]}',
-                        "email": data["email"],
-                        "phone number": data["phoneNumber"]
-                    }
-                    if droneSerial not in dronesDict:
-                        dronesDict.update({f'{droneSerial}': droneDict})
-                    elif droneSerial in dronesDict:
-                        currentDistance = math.hypot(droneX, deviceX, droneY, deviceY)
-                        if currentDistance < math.hypot(dronesDict[droneSerial]["positionX"], deviceX, dronesDict[droneSerial]["positionY"], deviceY):
-                            dronesDict[droneSerial]["positionX"] = droneX
-                            dronesDict[droneSerial]["positionY"] = droneY
-                            print("switched")
-                else:
-                    print(f'URL returned {url.status_code}')
-    for key in dronesDict:
-        print(f'{dronesDict[key]}')
-    return responseObj
+    try:
+        responseObj = s.get("http://assignments.reaktor.com/birdnest/drones")
+    except:
+        print("Response Content empty")
+    else:
+        try:
+            tree = etree.fromstring(responseObj.content)
+        except:
+            print(responseObj.headers)
+            print("Error occurred")
+        else:
+            droneList = tree.findall(".//drone")
+            for drone in droneList:
+                droneX = float(drone.find("positionX").text)
+                droneY = float(drone.find("positionY").text)
+                droneSerial = drone.find("serialNumber").text
+                if droneX > deviceMinimumRangeX and droneX < deviceMaximumRangeX and droneY > deviceMinimumRangeY and droneY < deviceMaximumRangeY:
+                    with request('GET', url=f'http://assignments.reaktor.com/birdnest/pilots/{droneSerial}') as url:
+                        if url.ok:
+                            data = url.json()
+                            droneDict = {
+                                "positionX": droneX,
+                                "positionY": droneY,
+                                "pilot name": f'{data["firstName"]} {data["lastName"]}',
+                                "email": data["email"],
+                                "phone number": data["phoneNumber"]
+                            }
+                            if droneSerial not in dronesDict:
+                                dronesDict.update({f'{droneSerial}': droneDict})
+                            elif droneSerial in dronesDict:
+                                currentDistance = math.hypot(droneX, deviceX, droneY, deviceY)
+                                if currentDistance < math.hypot(dronesDict[droneSerial]["positionX"], deviceX, dronesDict[droneSerial]["positionY"], deviceY):
+                                    dronesDict[droneSerial]["positionX"] = droneX
+                                    dronesDict[droneSerial]["positionY"] = droneY
+                                    print("switched")
+                        else:
+                            print(f'URL returned {url.status_code}')
+            for key in dronesDict:
+                print(f'{dronesDict[key]}')
+            return responseObj
 scheduler.start()
 
 @app.route("/")
@@ -67,8 +76,8 @@ def index():
 
 @app.context_processor
 def inject_load():
-    load = [int(random.random() * 100) / 100 for _ in range(3)]
-    return {'load1': load[0], 'load5': load[1], 'load15': load[2]}
+    droneKeys = [key for key in dronesDict]
+    return {'load1': droneKeys, 'load5': "", 'load15': ""}
 
 @app.before_first_request
 def before_first_request():
