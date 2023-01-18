@@ -1,5 +1,11 @@
 {
     "version": 2,
+    "env": {
+        "APP_ID": "@channels-app-id",
+        "KEY": "d01eee7db5fcc1165409",
+        "SECRET": "@channels-app-secret",
+        "CLUSTER": "eu"
+    },
     "builds": [
         {
             "src": "./index.py",

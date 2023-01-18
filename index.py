@@ -5,6 +5,7 @@ from lxml import etree
 from requests import Session, request
 from flask_apscheduler import APScheduler
 from turbo_flask import Turbo
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 turbo = Turbo(app)
@@ -25,6 +26,9 @@ def update_load():
         while True:
             time.sleep(5)
             turbo.push(turbo.replace(render_template('loadavg.html'), 'load'))
+
+def delete_drone(droneKey: str):
+    dronesDict.pop(droneKey)
 
 @scheduler.scheduler.scheduled_job('interval', id='getdrones', seconds=3, misfire_grace_time=10)
 def get_drones():
@@ -57,6 +61,7 @@ def get_drones():
                             }
                             if droneSerial not in dronesDict:
                                 dronesDict.update({f'{droneSerial}': droneDict})
+                                scheduler.add_job(id=f'{droneSerial}', func=delete_drone, args=(droneSerial,), trigger='date', run_date=datetime.now() + timedelta(minutes=10))
                             elif droneSerial in dronesDict:
                                 currentDistance = math.hypot(droneX, deviceX, droneY, deviceY)
                                 if currentDistance < math.hypot(dronesDict[droneSerial]["positionX"], deviceX, dronesDict[droneSerial]["positionY"], deviceY):
