@@ -1,5 +1,4 @@
 import math, threading, time
-import random
 from flask import Flask, render_template
 from lxml import etree
 from requests import Session, request
@@ -38,17 +37,22 @@ def get_drones():
         print("Response Content empty")
     else:
         try:
+            #Parses the received response content into xml element tree
             tree = etree.fromstring(responseObj.content)
         except:
             print(responseObj.headers)
             print("Error occurred")
         else:
+            #Finds all the drone elements from element tree
             droneList = tree.findall(".//drone")
             for drone in droneList:
+                #Gets drone positions and serial
                 droneX = float(drone.find("positionX").text)
                 droneY = float(drone.find("positionY").text)
                 droneSerial = drone.find("serialNumber").text
+                #Checks if drone position is inside the NDZ
                 if droneX > deviceMinimumRangeX and droneX < deviceMaximumRangeX and droneY > deviceMinimumRangeY and droneY < deviceMaximumRangeY:
+                    #Requests pilot information
                     with request('GET', url=f'http://assignments.reaktor.com/birdnest/pilots/{droneSerial}') as url:
                         if url.ok:
                             data = url.json()
@@ -59,9 +63,11 @@ def get_drones():
                                 "email": data["email"],
                                 "phone number": data["phoneNumber"]
                             }
+                            #If drone is not in the dictionary yet, add it in also add a timer for removing it's information
                             if droneSerial not in dronesDict:
                                 dronesDict.update({f'{droneSerial}': droneDict})
                                 scheduler.add_job(id=f'{droneSerial}', func=delete_drone, args=(droneSerial,), trigger='date', run_date=datetime.now() + timedelta(minutes=10))
+                            #If the drone is in, update it's position whenever it gets closer to the nest
                             elif droneSerial in dronesDict:
                                 currentDistance = math.hypot(droneX, deviceX, droneY, deviceY)
                                 if currentDistance < math.hypot(dronesDict[droneSerial]["positionX"], deviceX, dronesDict[droneSerial]["positionY"], deviceY):
@@ -70,6 +76,7 @@ def get_drones():
                                     print("switched")
                         else:
                             print(f'URL returned {url.status_code}')
+            #Print relevant information to console for debugging
             for key in dronesDict:
                 print(f'{dronesDict[key]}')
             return responseObj
